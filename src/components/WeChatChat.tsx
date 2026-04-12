@@ -50,7 +50,7 @@ export default function WeChatChat() {
   const [gameState, setGameState] = useState<GameState>("menu");
   const [scenarios, setScenarios] = useState<Scenario[]>(DEFAULT_SCENARIOS);
   const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
-  const [unlockedLevel, setUnlockedLevel] = useState(1);
+  const [unlockedLevel, setUnlockedLevel] = useState(DEFAULT_SCENARIOS.length);
   const [anger, setAnger] = useState(6);
   const [messageCount, setMessageCount] = useState(0);
   const MAX_MESSAGES = 15;
@@ -489,7 +489,7 @@ export default function WeChatChat() {
           </div>
 
           <p className="text-center text-gray-400 text-sm mt-6">
-            通过哄好女朋友解锁更多关卡
+            选择任意关卡开始挑战
           </p>
         </div>
       </div>
