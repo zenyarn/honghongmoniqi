@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { createSessionCookie } from "@/lib/auth/session";
+import { query, queryOne } from "@/storage/database/neon-client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,14 +32,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
-
-    // 检查用户名是否已存在
-    const { data: existingUser } = await client
-      .from("users")
-      .select("id")
-      .eq("username", username)
-      .maybeSingle();
+    const existingUser = await queryOne<{ id: number }>(
+      "select id from users where username = $1 limit 1",
+      [username]
+    );
 
     if (existingUser) {
       return NextResponse.json(
@@ -51,18 +48,18 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 创建用户
-    const { data, error } = await client
-      .from("users")
-      .insert({
-        username,
-        password: hashedPassword,
-      })
-      .select("id, username, created_at")
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`注册失败: ${error.message}`);
-    }
+    const result = await query<{
+      id: number;
+      username: string;
+      status: string;
+      created_at: string | null;
+    }>(
+      `insert into users (username, password, status)
+       values ($1, $2, $3)
+       returning id, username, status, created_at`,
+      [username, hashedPassword, "active"]
+    );
+    const data = result.rows[0] ?? null;
 
     if (!data) {
       return NextResponse.json(
@@ -71,11 +68,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await createSessionCookie({
+      id: data.id,
+      username: data.username,
+    });
+
     return NextResponse.json({
       success: true,
       user: {
         id: data.id,
         username: data.username,
+        status: data.status,
       },
     });
   } catch (error) {

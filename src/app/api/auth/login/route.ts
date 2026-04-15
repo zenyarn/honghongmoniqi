@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { createSessionCookie } from "@/lib/auth/session";
+import { queryOne } from "@/storage/database/neon-client";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,18 +16,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
-
-    // 查找用户
-    const { data, error } = await client
-      .from("users")
-      .select("id, username, password")
-      .eq("username", username)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`查询失败: ${error.message}`);
-    }
+    const data = await queryOne<{
+      id: number;
+      username: string;
+      password: string;
+      status: string;
+    }>(
+      "select id, username, password, status from users where username = $1 limit 1",
+      [username]
+    );
 
     if (!data) {
       return NextResponse.json(
@@ -36,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 验证密码
-    const isValid = await bcrypt.compare(password, data.password as string);
+    const isValid = await bcrypt.compare(password, data.password);
 
     if (!isValid) {
       return NextResponse.json(
@@ -45,11 +43,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await createSessionCookie({
+      id: data.id,
+      username: data.username,
+    });
+
     return NextResponse.json({
       success: true,
       user: {
         id: data.id,
         username: data.username,
+        status: data.status,
       },
     });
   } catch (error) {
