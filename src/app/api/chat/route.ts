@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
+import { invokeLLM } from "@/lib/providers/ark-llm";
 
 // 女友人设提示词
 const GIRLFRIEND_SYSTEM_PROMPT = `你是一个正在生气的女朋友，性格倔强但心软，吃软不吃硬。
@@ -103,15 +103,7 @@ export async function POST(request: NextRequest) {
     ];
 
     // 调用 LLM
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config = new Config();
-    const client = new LLMClient(config, customHeaders);
-
-    // 使用非流式调用
-    const response = await client.invoke(llmMessages, {
-      model: "doubao-seed-1-8-251228",
-      temperature: 0.8,
-    });
+    const response = await invokeLLM(llmMessages, { temperature: 0.8 });
 
     // 解析怒气值
     let content = response.content;
