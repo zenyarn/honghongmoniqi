@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { LLMClient, Config, HeaderUtils } from "coze-coding-dev-sdk";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { invokeLLM } from "@/lib/providers/ark-llm";
+import { query, queryOne } from "@/storage/database/neon-client";
 
 interface ArticleListItem {
-  id: string;
+  id: number;
   title: string;
   summary: string;
 }
@@ -13,19 +13,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const articleId = searchParams.get("id");
 
-    const client = getSupabaseClient();
-
     // 如果指定了文章ID，返回具体文章内容
     if (articleId) {
-      const { data, error } = await client
-        .from("blog_posts")
-        .select("id, title, summary, content, created_at")
-        .eq("id", articleId)
-        .maybeSingle();
-
-      if (error) {
-        throw new Error(`查询失败: ${error.message}`);
-      }
+      const data = await queryOne<{
+        id: number;
+        title: string;
+        summary: string;
+        content: string;
+        created_at: string | null;
+      }>(
+        "select id, title, summary, content, created_at from blog_posts where id = $1 limit 1",
+        [Number(articleId)]
+      );
 
       if (!data) {
         return NextResponse.json({ error: "文章不存在" }, { status: 404 });
@@ -41,19 +40,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 返回文章列表
-    const { data, error } = await client
-      .from("blog_posts")
-      .select("id, title, summary")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      throw new Error(`查询失败: ${error.message}`);
-    }
-
-    const articles: ArticleListItem[] = (data || []) as ArticleListItem[];
+    const { rows } = await query<ArticleListItem>(
+      "select id, title, summary from blog_posts order by created_at desc"
+    );
 
     return NextResponse.json({
-      articles,
+      articles: rows,
     });
   } catch (error) {
     console.error("Blog API error:", error);
@@ -78,10 +70,6 @@ export async function POST(request: NextRequest) {
     }
 
     // 生成文章内容
-    const customHeaders = HeaderUtils.extractForwardHeaders(request.headers);
-    const config_sdk = new Config();
-    const client = new LLMClient(config_sdk, customHeaders);
-
     const prompt = `你是一个情感博主，请为"${topic}"这个主题写一篇300-500字的公众号文章。
 
 要求：
@@ -93,7 +81,7 @@ export async function POST(request: NextRequest) {
 
 开始写：`;
 
-    const response = await client.invoke(
+    const response = await invokeLLM(
       [{ role: "user", content: prompt }],
       { temperature: 0.8 }
     );
@@ -109,33 +97,26 @@ export async function POST(request: NextRequest) {
 
 直接输出标题，不要任何解释：`;
 
-    const titleResponse = await client.invoke(
+    const titleResponse = await invokeLLM(
       [{ role: "user", content: titlePrompt }],
       { temperature: 0.5 }
     );
 
     const title = titleResponse.content.trim();
 
-    // 保存到数据库
-    const supabase = getSupabaseClient();
-
-    // 生成新ID（基于时间戳）
-    const newId = Date.now().toString();
-
-    const { data, error } = await supabase
-      .from("blog_posts")
-      .insert({
-        id: newId,
-        title,
-        summary,
-        content,
-      })
-      .select("id, title, summary, content, created_at")
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`保存失败: ${error.message}`);
-    }
+    const { rows } = await query<{
+      id: number;
+      title: string;
+      summary: string;
+      content: string;
+      created_at: string | null;
+    }>(
+      `insert into blog_posts (title, summary, content)
+       values ($1, $2, $3)
+       returning id, title, summary, content, created_at`,
+      [title, summary, content]
+    );
+    const data = rows[0] ?? null;
 
     if (!data) {
       throw new Error("保存失败：未返回数据");

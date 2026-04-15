@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { query } from "@/storage/database/neon-client";
 
 interface GameRecord {
   id: number;
@@ -32,22 +32,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
-
-    const { data, error } = await client
-      .from("game_records")
-      .insert({
-        user_id: userId,
-        scenario,
-        final_score: finalScore,
-        result,
-      })
-      .select("id, scenario, final_score, result, played_at")
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`保存失败: ${error.message}`);
-    }
+    const { rows } = await query<GameRecord>(
+      `insert into game_records (user_id, scenario, final_score, result)
+       values ($1, $2, $3, $4)
+       returning id, user_id, scenario, final_score, result, played_at`,
+      [userId, scenario, finalScore, result]
+    );
+    const data = rows[0] ?? null;
 
     if (!data) {
       return NextResponse.json(
@@ -82,20 +73,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const client = getSupabaseClient();
+    const { rows } = await query<GameRecord>(
+      `select id, user_id, scenario, final_score, result, played_at
+       from game_records
+       where user_id = $1
+       order by played_at desc
+       limit 50`,
+      [Number(userId)]
+    );
 
-    const { data, error } = await client
-      .from("game_records")
-      .select("id, scenario, final_score, result, played_at")
-      .eq("user_id", Number(userId))
-      .order("played_at", { ascending: false })
-      .limit(50);
-
-    if (error) {
-      throw new Error(`查询失败: ${error.message}`);
-    }
-
-    const records: GameRecord[] = (data || []) as GameRecord[];
+    const records = rows;
 
     return NextResponse.json({
       records,

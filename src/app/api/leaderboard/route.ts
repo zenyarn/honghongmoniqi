@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseClient } from "@/storage/database/supabase-client";
+import { query } from "@/storage/database/neon-client";
 
 interface LeaderboardEntry {
   rank: number;
@@ -12,28 +12,19 @@ interface LeaderboardEntry {
 
 export async function GET(request: NextRequest) {
   try {
-    const client = getSupabaseClient();
-
-    // 查询每个用户的最佳成绩（最高分数，通关优先，然后按时间排序）
-    const { data, error } = await client
-      .from("game_records")
-      .select(`
-        user_id,
-        final_score,
-        result,
-        played_at,
-        users:user_id (
-          username
-        )
-      `)
-      .order("final_score", { ascending: false })
-      .order("result", { ascending: true })
-      .order("played_at", { ascending: false })
-      .limit(100);
-
-    if (error) {
-      throw new Error(`查询失败: ${error.message}`);
-    }
+    const { rows: data } = await query<{
+      user_id: number;
+      final_score: number;
+      result: string;
+      played_at: string;
+      username: string | null;
+    }>(
+      `select gr.user_id, gr.final_score, gr.result, gr.played_at, u.username
+       from game_records gr
+       left join users u on u.id = gr.user_id
+       order by gr.final_score desc, gr.result asc, gr.played_at desc
+       limit 100`
+    );
 
     // 处理数据：找出每个用户的最佳成绩
     const userBestRecords = new Map<number, LeaderboardEntry>();
@@ -44,7 +35,7 @@ export async function GET(request: NextRequest) {
         
         if (!userBestRecords.has(userId)) {
           // 获取用户名
-          const username = (record.users as unknown as { username: string })?.username || `用户${userId}`;
+          const username = record.username || `用户${userId}`;
           
           userBestRecords.set(userId, {
             rank: 0,
