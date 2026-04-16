@@ -192,7 +192,7 @@ export async function getRecordsPage(input: {
   );
 
   return {
-    rows: rows.map((record) => ({
+    rows: rows.map((record: SqlRecordRow) => ({
       id: record.id,
       user_id: record.user_id,
       scenario: record.scenario,
