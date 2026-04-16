@@ -119,7 +119,7 @@ async function findMatchingUserIdsByUsername(search: string) {
     [`%${search}%`]
   );
 
-  return rows.map((item) => item.id);
+  return rows.map((item: { id: number }) => item.id);
 }
 
 export async function getRecordsPage(input: {
