@@ -107,6 +107,9 @@ importers:
       '@types/node':
         specifier: ^20.19.37
         version: 20.19.37
+      '@types/pg':
+        specifier: ^8.16.0
+        version: 8.20.0
       '@types/react':
         specifier: ^19
         version: 19.2.14
@@ -204,9 +207,6 @@ importers:
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
-      '@types/pg':
-        specifier: ^8.16.0
-        version: 8.20.0
       eslint:
         specifier: ^9
         version: 9.39.4(jiti@2.6.1)
