@@ -11,6 +11,9 @@
     "ts-check": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@types/node": "^20.19.37",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "@tailwindcss/postcss": "^4",
     "@aws-sdk/client-s3": "^3.958.0",
     "@aws-sdk/lib-storage": "^3.958.0",
@@ -75,10 +78,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
-    "@types/node": "^20.19.37",
     "@types/pg": "^8.16.0",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "only-allow": "^1.2.2",
