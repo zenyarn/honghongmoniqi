@@ -38,6 +38,11 @@ type SqlRecordRow = {
   user_username: string | null;
 };
 
+type AdminPageResult<T> = {
+  rows: T[];
+  total: number;
+};
+
 export async function getAdminDashboardStats() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -71,7 +76,7 @@ export async function getUsersPage(input: {
   page: number;
   query: string;
   status: string;
-}) {
+}): Promise<AdminPageResult<AdminUserRow>> {
   const offset = (input.page - 1) * ADMIN_PAGE_SIZE;
   const where: string[] = [];
   const params: unknown[] = [];
@@ -121,7 +126,7 @@ export async function getRecordsPage(input: {
   page: number;
   query: string;
   status: string;
-}) {
+}): Promise<AdminPageResult<AdminRecordRow>> {
   const offset = (input.page - 1) * ADMIN_PAGE_SIZE;
   let matchedUserIds: number[] | null = null;
   let exactId: number | null = null;
