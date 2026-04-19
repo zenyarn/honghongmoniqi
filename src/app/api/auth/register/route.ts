@@ -6,7 +6,11 @@ import { query, queryOne } from "@/storage/database/neon-client";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, password } = body;
+    const { username, password, turnstileToken } = body as {
+      username?: string;
+      password?: string;
+      turnstileToken?: string;
+    };
 
     // 验证输入
     if (!username || !password) {
@@ -32,6 +36,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const turnstileSecretKey = process.env.TURNSTILE_SECRET_KEY;
+    if (!turnstileSecretKey) {
+      console.error("Register error: TURNSTILE_SECRET_KEY is not configured");
+      return NextResponse.json(
+        { error: "人机验证配置缺失，请联系管理员" },
+        { status: 500 }
+      );
+    }
+
+    if (!turnstileToken) {
+      return NextResponse.json(
+        { error: "请先完成人机验证" },
+        { status: 400 }
+      );
+    }
+
     const existingUser = await queryOne<{ id: number }>(
       "select id from users where username = $1 limit 1",
       [username]
@@ -41,6 +61,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "用户名已存在" },
         { status: 409 }
+      );
+    }
+
+    // 去 Cloudflare 验证这个 token 是不是真的
+    const verifyResponse = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          secret: turnstileSecretKey,
+          response: turnstileToken,
+          remoteip: request.headers.get("x-forwarded-for") ?? undefined,
+        }),
+      }
+    );
+
+    const verifyResult = (await verifyResponse.json()) as {
+      success?: boolean;
+      "error-codes"?: string[];
+    };
+
+    // 如果验证失败，直接拒绝
+    if (!verifyResult.success) {
+      console.error("Turnstile verification failed", {
+        errorCodes: verifyResult["error-codes"] ?? [],
+      });
+      return NextResponse.json(
+        { error: "人机验证失败，请重试" },
+        { status: 403 }
       );
     }
 
